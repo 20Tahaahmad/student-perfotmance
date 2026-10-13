@@ -1,0 +1,9 @@
+[theme]
+# Match the custom dark design in app.py, so Streamlit's own widgets
+# (labels, inputs, alerts, sidebar, buttons) use readable colors.
+base = "dark"
+primaryColor = "#818cf8"
+backgroundColor = "#0b1020"
+secondaryBackgroundColor = "#18213a"
+textColor = "#e8ecf8"
+font = "sans serif"

@@ -74,10 +74,37 @@ DARK_CSS = """
 .metric-value{font-size:1.65rem;font-weight:800;color:#fff;overflow-wrap:anywhere}
 .muted{color:#aab6d0;font-size:.86rem;line-height:1.65}
 .pill{display:inline-block;border-radius:999px;padding:5px 10px;font-size:.75rem;font-weight:800}
-.stButton button{border-radius:11px;font-weight:700;min-height:42px}
-div[data-testid="stNumberInput"] input,div[data-testid="stTextInput"] input{background:rgba(255,255,255,.04)}
+.stApp p,.stApp li,.stApp label,.stApp input,.stApp button,.stApp h1,.stApp h2,.stApp h3{font-family:Inter,sans-serif}
+.stApp p,.stApp li,.stApp h1,.stApp h2,.stApp h3,.stApp strong{color:#e8ecf8}
 .report-title{font-size:1.5rem;font-weight:800;color:#fff}
 hr{border-color:rgba(167,184,220,.17)}
+
+/* Glass cards (bordered st.container with key "glass_*") */
+[class*="st-key-glass"]{border:1px solid rgba(167,184,220,.17)!important;border-radius:20px!important;padding:22px!important;background:linear-gradient(145deg,rgba(25,35,60,.92),rgba(14,22,40,.9))}
+
+/* Widget labels: always readable on the dark background */
+[data-testid="stWidgetLabel"] p,[data-testid="stWidgetLabel"] label{color:#c7d2fe!important;font-weight:600;font-size:.88rem}
+
+/* Inputs */
+div[data-testid="stTextInput"] input,div[data-testid="stNumberInput"] input{background:#121a2f!important;color:#f5f7ff!important;-webkit-text-fill-color:#f5f7ff;font-weight:500}
+div[data-testid="stTextInput"] input::placeholder{color:#6b7896!important;-webkit-text-fill-color:#6b7896}
+div[data-testid="stTextInput"]>div>div,div[data-testid="stNumberInput"]>div>div{background:#121a2f!important;border-color:rgba(167,184,220,.22)!important;border-radius:11px}
+div[data-testid="stNumberInput"] button{background:#18213a!important;color:#c7d2fe!important}
+
+/* Alerts (info / success / error / warning) */
+[data-testid="stAlert"] p,[data-testid="stAlert"] li,[data-testid="stAlert"] strong{color:#f5f7ff!important}
+
+/* Buttons */
+.stButton button,.stDownloadButton button{border-radius:11px;font-weight:700;min-height:42px;background:#18213a;color:#e8ecf8;border:1px solid rgba(167,184,220,.25)}
+.stButton button:hover,.stDownloadButton button:hover{border-color:#818cf8;color:#fff}
+.stButton button[kind="primary"]{background:linear-gradient(90deg,#6366f1,#3b82f6);border:0;color:#fff;box-shadow:0 8px 22px rgba(99,102,241,.35)}
+.stButton button[kind="primary"]:hover{filter:brightness(1.08);color:#fff}
+.stButton button p,.stDownloadButton button p{color:inherit!important}
+
+/* Sidebar */
+[data-testid="stSidebar"]{background:#0e1528!important;border-right:1px solid rgba(167,184,220,.12)}
+[data-testid="stSidebar"] p,[data-testid="stSidebar"] h2,[data-testid="stSidebar"] h3,[data-testid="stSidebar"] strong{color:#e8ecf8!important}
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p,[data-testid="stCaptionContainer"] p{color:#aab6d0!important}
 </style>
 """
 st.markdown(DARK_CSS, unsafe_allow_html=True)
@@ -116,17 +143,26 @@ def make_history_figure(history):
     df = pd.DataFrame(history)
     if df.empty:
         return go.Figure()
-    df = df.sort_values("analyzed_at")
+    # Ranked bars, best student on top, with the class average as a reference line
+    df = df.sort_values("performance", ascending=True)
+    average = df["performance"].astype(float).mean()
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=df["analyzed_at"], y=df["performance"], mode="lines+markers",
-        name="Performance", line=dict(color="#818cf8", width=3),
-        marker=dict(size=8), hovertemplate="%{x}<br>%{y:.1f}%<extra></extra>",
+    fig.add_trace(go.Bar(
+        x=df["performance"], y=df["name"], orientation="h", width=0.55,
+        marker=dict(color="#818cf8", cornerradius=4),
+        text=[f"{v:g}%" for v in df["performance"]], textposition="outside",
+        customdata=df[["grade", "level"]],
+        hovertemplate="<b>%{y}</b><br>%{x:.1f}% · Grade %{customdata[0]} · %{customdata[1]}<extra></extra>",
     ))
+    fig.add_vline(
+        x=average, line=dict(color="#aab6d0", width=1), layer="below",
+        annotation_text=f"Average {average:.1f}%", annotation_position="top",
+        annotation_font=dict(color="#aab6d0", size=12),
+    )
     fig.update_layout(
-        height=300, margin=dict(l=10, r=10, t=15, b=20),
-        yaxis=dict(range=[0, 105], title="Performance (%)", gridcolor="rgba(180,195,225,.12)"),
-        xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+        height=max(180, 46 * len(df) + 80), margin=dict(l=10, r=40, t=30, b=20),
+        xaxis=dict(range=[0, 105], ticksuffix="%", gridcolor="rgba(180,195,225,.12)", zeroline=False),
+        yaxis=dict(gridcolor="rgba(0,0,0,0)"),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#dbe4ff"), showlegend=False,
     )
@@ -207,27 +243,29 @@ with st.sidebar:
 form_col, live_col = st.columns([1.1, 0.9], gap="large")
 
 with form_col:
-    st.markdown('<div class="glass"><div class="section-title">📝 Student details & scores</div>', unsafe_allow_html=True)
-    name = st.text_input("Student name", key="student_name", placeholder="Enter student name")
-    first_row = st.columns(2)
-    values = {}
-    for index, (key, label, minimum, maximum, step, default) in enumerate(FIELD_CONFIG):
-        with first_row[index % 2]:
-            values[key] = st.number_input(
-                label,
-                min_value=float(minimum),
-                max_value=float(maximum),
-                step=float(step),
-                value=float(st.session_state.get(f"score_{key}", default)),
-                key=f"score_{key}",
-            )
-    student = {"name": name.strip(), **values}
-    live_errors = validate_student(student)
-    if name.strip() and not live_errors:
-        live_performance = calculate_performance(student)
-        st.info(f"⚡ Live estimate: **{live_performance:g}%** · Grade **{get_grade(live_performance)}**")
-    analyze_clicked = st.button("✨ Analyze performance", type="primary", use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True, key="glass_form"):
+        st.markdown('<div class="section-title">📝 Student details & scores</div>', unsafe_allow_html=True)
+        name = st.text_input("Student name", key="student_name", placeholder="Enter student name")
+        first_row = st.columns(2)
+        values = {}
+        for index, (key, label, minimum, maximum, step, default) in enumerate(FIELD_CONFIG):
+            # Seed the default via session state only, so "Load sample" doesn't
+            # trigger Streamlit's "default value + Session State" warning
+            st.session_state.setdefault(f"score_{key}", float(default))
+            with first_row[index % 2]:
+                values[key] = st.number_input(
+                    label,
+                    min_value=float(minimum),
+                    max_value=float(maximum),
+                    step=float(step),
+                    key=f"score_{key}",
+                )
+        student = {"name": name.strip(), **values}
+        live_errors = validate_student(student)
+        if name.strip() and not live_errors:
+            live_performance = calculate_performance(student)
+            st.info(f"⚡ Live estimate: **{live_performance:g}%** · Grade **{get_grade(live_performance)}**")
+        analyze_clicked = st.button("✨ Analyze performance", type="primary", use_container_width=True)
 
     if analyze_clicked:
         errors = validate_student(student)
@@ -256,8 +294,8 @@ with form_col:
             except Exception as error:
                 st.error(f"Analysis failed: {error}")
 
-with live_col:
-    st.markdown('<div class="glass"><div class="section-title">📊 Score overview</div>', unsafe_allow_html=True)
+with live_col, st.container(border=True, key="glass_overview"):
+    st.markdown('<div class="section-title">📊 Score overview</div>', unsafe_allow_html=True)
     if name.strip() and not live_errors:
         try:
             score = calculate_performance(student)
@@ -287,7 +325,6 @@ with live_col:
             '<p class="muted">Enter a name and valid scores to see a live estimate.</p></div>',
             unsafe_allow_html=True,
         )
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # Analysis report
 result = st.session_state.result
@@ -326,8 +363,8 @@ if result:
             )
 
     left_report, right_report = st.columns([1, 1], gap="large")
-    with left_report:
-        st.markdown('<div class="glass"><div class="section-title">📈 Score breakdown</div>', unsafe_allow_html=True)
+    with left_report, st.container(border=True, key="glass_breakdown"):
+        st.markdown('<div class="section-title">📈 Score breakdown</div>', unsafe_allow_html=True)
         figure, breakdown = make_breakdown_figure(student_result, performance)
         st.plotly_chart(
             figure,
@@ -340,10 +377,9 @@ if result:
             st.dataframe(breakdown_df, use_container_width=True, hide_index=True)
         except Exception:
             pass
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    with right_report:
-        st.markdown('<div class="glass"><div class="section-title">💡 Insights & recommendations</div>', unsafe_allow_html=True)
+    with right_report, st.container(border=True, key="glass_insights"):
+        st.markdown('<div class="section-title">💡 Insights & recommendations</div>', unsafe_allow_html=True)
         try:
             best = max(breakdown, key=lambda item: safe_float(item.get("score")))
             worst = min(breakdown, key=lambda item: safe_float(item.get("score")))
@@ -360,24 +396,23 @@ if result:
                 st.markdown(f"**Next grade:** {upcoming[1]} starts at {upcoming[0]}%.")
         except Exception as error:
             st.caption(f"Some insights could not be generated: {error}")
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="glass"><div class="section-title">🧠 Personalized summary</div>', unsafe_allow_html=True)
-    source_label = {
-        "ai": "✨ AI-generated summary",
-        "fallback": "⚠️ AI unavailable — rule-based summary",
-        "offline": "⚙️ Rule-based summary (offline mode)",
-    }.get(result["source"], "Summary")
-    st.caption(source_label)
-    st.write(result["summary"])
-    st.download_button(
-        "⬇️ Download student report",
-        data=report_markdown(result),
-        file_name=f"{student_result['name'].strip().replace(' ', '_')}_report.md",
-        mime="text/markdown",
-        use_container_width=False,
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True, key="glass_summary"):
+        st.markdown('<div class="section-title">🧠 Personalized summary</div>', unsafe_allow_html=True)
+        source_label = {
+            "ai": "✨ AI-generated summary",
+            "fallback": "⚠️ AI unavailable — rule-based summary",
+            "offline": "⚙️ Rule-based summary (offline mode)",
+        }.get(result["source"], "Summary")
+        st.caption(source_label)
+        st.write(result["summary"])
+        st.download_button(
+            "⬇️ Download student report",
+            data=report_markdown(result),
+            file_name=f"{student_result['name'].strip().replace(' ', '_')}_report.md",
+            mime="text/markdown",
+            use_container_width=False,
+        )
 
 # History and export
 st.markdown("---")
