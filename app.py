@@ -272,7 +272,12 @@ with live_col:
             )
             st.progress(max(0.0, min(1.0, score / 100)))
             breakdown_fig, breakdown = make_breakdown_figure(student, score)
-            st.plotly_chart(breakdown_fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(
+                breakdown_fig,
+                use_container_width=True,
+                config={"displayModeBar": False},
+                key="breakdown_chart",
+            )
         except Exception as error:
             st.warning(f"Could not calculate preview: {error}")
     else:
@@ -324,7 +329,12 @@ if result:
     with left_report:
         st.markdown('<div class="glass"><div class="section-title">📈 Score breakdown</div>', unsafe_allow_html=True)
         figure, breakdown = make_breakdown_figure(student_result, performance)
-        st.plotly_chart(figure, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            figure,
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="performance_chart",
+        )
         try:
             breakdown_df = pd.DataFrame(breakdown)
             st.dataframe(breakdown_df, use_container_width=True, hide_index=True)
@@ -392,7 +402,12 @@ if history:
         with h3:
             top = hist_df.sort_values("performance", ascending=False).iloc[0]
             st.markdown(f'<div class="metric"><div class="metric-label">Top performer</div><div class="metric-value">{top["name"]}</div><div class="metric-label">{top["performance"]:.1f}% · {top["grade"]}</div></div>', unsafe_allow_html=True)
-        st.plotly_chart(make_history_figure(history), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            make_history_figure(history),
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="history_chart",
+        )
     st.dataframe(hist_df, use_container_width=True, hide_index=True)
     st.download_button(
         "⬇️ Export history as CSV",
