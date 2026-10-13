@@ -1,0 +1,6 @@
+streamlit>=1.32,<2.0
+pandas>=2.0
+plotly>=5.18
+python-dotenv
+huggingface_hub
+requests
